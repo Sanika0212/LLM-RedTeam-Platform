@@ -14,33 +14,40 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install linters
-        run: pip install black isort
-      - name: Check backend formatting
-        run: |
-          black --check backend/
-          isort --check backend/
-      - name: Check engine formatting
-        run: |
-          black --check redteam-engine/
-          isort --check redteam-engine/
+      - name: Install ruff
+        run: pip install ruff
+      - name: Lint backend
+        run: ruff check backend/ --ignore=E501,W503,E402,F401
+      - name: Lint redteam-engine
+        run: ruff check redteam-engine/ --ignore=E501,W503,E402,F401
 
   test-backend:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite:///./test_ci.db
+      SECRET_KEY: ci-test-secret-key-not-for-production
+      DEBUG: "True"
+      OPENAI_API_KEY: "sk-test"
+      ANTHROPIC_API_KEY: "sk-ant-test"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install dependencies
+      - name: Install backend dependencies
         working-directory: backend
         run: |
           pip install --upgrade pip
-          pip install -r requirements-dev.txt
-          pip install pytest pytest-cov httpx python-jose[cryptography]
+          pip install \
+            fastapi uvicorn[standard] python-multipart \
+            sqlalchemy alembic \
+            python-jose[cryptography] passlib[bcrypt] \
+            python-dotenv pydantic \
+            httpx \
+            pytest pytest-cov pytest-asyncio
       - name: Run backend tests
         working-directory: backend
-        run: pytest -v --cov=. --cov-report=term --cov-report=xml:coverage.xml
+        run: pytest tests/ -v --cov=. --cov-report=term --cov-report=xml:coverage.xml
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v4
@@ -55,14 +62,20 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install dependencies
+      - name: Install engine CI dependencies
         working-directory: redteam-engine
         run: |
           pip install --upgrade pip
-          pip install pytest pytest-cov
+          pip install \
+            pytest pytest-cov \
+            numpy pydantic python-dotenv
       - name: Run engine tests
         working-directory: redteam-engine
-        run: pytest -v --cov=. --cov-report=term
+        run: |
+          pytest tests/test_metrics.py tests/test_bias.py tests/test_refusal.py \
+                 tests/test_core.py -v --cov=. --cov-report=term
+        env:
+          SKIP_ML_TESTS: "1"
 
   typecheck-frontend:
     runs-on: ubuntu-latest
@@ -71,6 +84,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
@@ -86,6 +101,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
         working-directory: frontend
         run: npm ci

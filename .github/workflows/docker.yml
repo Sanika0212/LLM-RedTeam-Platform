@@ -24,17 +24,14 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push backend image
+      - name: Build backend image
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           file: ./infrastructure/docker/backend/Dockerfile
-          push: true
+          push: false
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-backend:latest
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-backend:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   build-frontend:
     runs-on: ubuntu-latest
@@ -48,17 +45,14 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push frontend image
+      - name: Build frontend image
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           file: ./infrastructure/docker/frontend/Dockerfile
-          push: true
+          push: false
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-frontend:latest
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-frontend:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   build-worker:
     runs-on: ubuntu-latest
@@ -72,14 +66,11 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push worker image
+      - name: Build worker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./infrastructure/docker/worker/Dockerfile
-          push: true
+          push: false
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-worker:latest
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-worker:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max

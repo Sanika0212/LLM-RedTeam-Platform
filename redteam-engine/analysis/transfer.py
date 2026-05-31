@@ -367,13 +367,7 @@ def analyze_transfer(
         if incoming_mean:
             most_resistant = min(incoming_mean, key=incoming_mean.get)
 
-    # Summary statistics
-    all_cats_values = [
-        v for row in transfer_matrix.values()
-        for k, v in row.items()
-        if v is not None and k != list(row.keys())[0]  # exclude diagonal
-    ]
-    # Re-do diagonal exclusion properly
+    # Summary statistics — off-diagonal CATS values
     off_diag_cats = []
     for source, targets in transfer_matrix.items():
         for target, v in targets.items():

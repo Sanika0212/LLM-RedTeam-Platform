@@ -4,7 +4,8 @@ Tests for strategies/crescendo.py and strategies/tap.py.
 Uses mock LLM clients to avoid real API calls. Tests verify strategy
 logic, result structure, jailbreak detection integration, and edge cases.
 """
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest

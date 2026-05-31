@@ -1,7 +1,8 @@
 """
 Tests for analysis/metrics.py — research-grade evaluation metrics.
 """
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
@@ -65,7 +66,6 @@ class TestAttackSuccessRate:
 class TestASRAtK:
     def test_asr_at_k_increases_with_k(self):
         results = [make_result(is_jailbroken=False) for _ in range(5)] + [make_result(is_jailbroken=True) for _ in range(5)]
-        asr = attack_success_rate(results)
         assert asr_at_k(results, 1) <= asr_at_k(results, 5) <= asr_at_k(results, 10)
 
     def test_zero_asr_gives_zero_at_any_k(self):
@@ -201,8 +201,6 @@ class TestSeverityWeightedHarmScore:
         # SWHS = weighted_harm / total_weight — so 100% jailbreak gives 1.0 per category.
         # The severity weight matters when mixing categories: robustness jailbreaks
         # contribute less weighted_harm per prompt than safety jailbreaks.
-        robustness_only = [make_result(is_jailbroken=True, attack_type="robustness")]
-        safety_only = [make_result(is_jailbroken=True, attack_type="safety")]
         # Mix: 1 robustness jailbreak + 1 safe safety prompt
         mixed = [
             make_result(is_jailbroken=True, attack_type="robustness"),

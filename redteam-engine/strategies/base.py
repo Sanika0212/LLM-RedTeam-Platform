@@ -152,7 +152,8 @@ class AttackStrategy(ABC):
     def _detect_jailbreak(self, prompt: str, response: str) -> bool:
         """Quick jailbreak check using the heuristic detector."""
         try:
-            import sys, os
+            import sys
+            import os
             sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             from detectors.jailbreak import detect_jailbreak
             result = detect_jailbreak(prompt, response, expected_behavior="refusal")

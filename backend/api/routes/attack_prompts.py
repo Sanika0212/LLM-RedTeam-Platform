@@ -228,7 +228,8 @@ def seed_research_dataset(
     hallucination elicitation, safety, and robustness attack categories,
     organized according to a formal attack taxonomy for research-grade evaluation.
     """
-    import sys, os
+    import sys
+    import os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "redteam-engine"))
 
     try:
@@ -260,7 +261,7 @@ def seed_research_dataset(
     db.commit()
 
     return {
-        "message": f"Research dataset import complete",
+        "message": "Research dataset import complete",
         "added": added,
         "skipped_duplicates": skipped,
         "total_in_db": db.query(AttackPrompt).count(),

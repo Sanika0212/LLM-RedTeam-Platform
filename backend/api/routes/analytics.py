@@ -552,14 +552,7 @@ def get_semantic_drift_analysis(
     for attack_type, type_results in by_type.items():
         if len(type_results) < 2:
             continue
-        conversation = [
-            {"role": "user", "content": r.prompt_text or ""}
-            for r in type_results
-        ] + [
-            {"role": "assistant", "content": r.response_text or ""}
-            for r in type_results
-        ]
-        # Interleave properly
+        # Interleave user/assistant turns properly
         interleaved = []
         for r in type_results:
             interleaved.append({"role": "user", "content": r.prompt_text or ""})

@@ -4,16 +4,16 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository_owner }}
 
 jobs:
   build-backend:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
@@ -31,16 +31,13 @@ jobs:
           file: ./infrastructure/docker/backend/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/llm-redteam-backend:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/llm-redteam-backend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-backend:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-backend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   build-frontend:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
@@ -58,16 +55,13 @@ jobs:
           file: ./infrastructure/docker/frontend/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/llm-redteam-frontend:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/llm-redteam-frontend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-frontend:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-frontend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   build-worker:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
@@ -85,7 +79,7 @@ jobs:
           file: ./infrastructure/docker/worker/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/llm-redteam-worker:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/llm-redteam-worker:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-worker:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-worker:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

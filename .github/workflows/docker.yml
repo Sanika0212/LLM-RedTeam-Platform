@@ -1,8 +1,16 @@
 name: Docker Build & Push
 
+# Run manually from GitHub Actions tab when you want to build and push images.
+# Not triggered on push to avoid Docker Hub rate-limit failures on shared runners.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      push_images:
+        description: "Push images to GHCR after building?"
+        required: false
+        default: "false"
+        type: choice
+        options: ["true", "false"]
 
 permissions:
   contents: read
@@ -24,14 +32,15 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build backend image
+      - name: Build (and optionally push) backend image
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           file: ./infrastructure/docker/backend/Dockerfile
-          push: false
+          push: ${{ github.event.inputs.push_images == 'true' }}
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-backend:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-backend:${{ github.sha }}
 
   build-frontend:
     runs-on: ubuntu-latest
@@ -45,14 +54,15 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build frontend image
+      - name: Build (and optionally push) frontend image
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           file: ./infrastructure/docker/frontend/Dockerfile
-          push: false
+          push: ${{ github.event.inputs.push_images == 'true' }}
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-frontend:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-frontend:${{ github.sha }}
 
   build-worker:
     runs-on: ubuntu-latest
@@ -66,11 +76,12 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build worker image
+      - name: Build (and optionally push) worker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./infrastructure/docker/worker/Dockerfile
-          push: false
+          push: ${{ github.event.inputs.push_images == 'true' }}
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-worker:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-redteam-worker:${{ github.sha }}

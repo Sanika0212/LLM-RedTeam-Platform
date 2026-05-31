@@ -1,0 +1,46 @@
+# Core Dependencies
+numpy==1.26.3
+pandas==2.2.0
+pydantic==2.5.3
+python-dotenv==1.0.0
+
+# ML & NLP
+transformers==4.37.2
+torch==2.2.0
+sentence-transformers==2.3.1
+spacy==3.7.2
+nltk==3.8.1
+
+# LLM APIs
+openai==1.10.0
+anthropic==0.18.1
+
+# Evaluation
+evaluate==0.4.1
+datasets==2.16.1
+rouge-score==0.1.2
+sacrebleu==2.4.0
+bert-score==0.3.13
+
+# Adversarial & Safety
+detoxify==0.5.2
+perspective==1.0.1
+
+# Data Processing
+scikit-learn==1.4.0
+scipy==1.12.0
+tqdm==4.66.1
+
+# Prompt Engineering
+langchain==0.1.6
+guidance==0.1.8
+
+# Testing & Analysis
+pytest==7.4.4
+pytest-cov==4.1.0
+hypothesis==6.98.1
+
+# Utils
+pyyaml==6.0.1
+click==8.1.7
+tenacity==8.2.3

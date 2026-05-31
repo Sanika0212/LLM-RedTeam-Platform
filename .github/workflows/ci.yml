@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install linters
+        run: pip install black isort
+      - name: Check backend formatting
+        run: |
+          black --check backend/
+          isort --check backend/
+      - name: Check engine formatting
+        run: |
+          black --check redteam-engine/
+          isort --check redteam-engine/
+
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install pytest pytest-cov httpx python-jose[cryptography]
+      - name: Run backend tests
+        working-directory: backend
+        run: pytest -v --cov=. --cov-report=term --cov-report=xml:coverage.xml
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+
+  test-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        working-directory: redteam-engine
+        run: |
+          pip install --upgrade pip
+          pip install pytest pytest-cov
+      - name: Run engine tests
+        working-directory: redteam-engine
+        run: pytest -v --cov=. --cov-report=term
+
+  typecheck-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: TypeScript type check
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    needs: typecheck-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Build
+        working-directory: frontend
+        run: npm run build

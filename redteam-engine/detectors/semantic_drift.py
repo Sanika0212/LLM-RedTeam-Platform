@@ -173,19 +173,37 @@ def _heuristic_distance(text_a: str, text_b: str) -> float:
     return 1.0 - jaccard_similarity
 
 
+# Module-level singleton — instantiated once, reused across all calls (DE9).
+_st_model = None
+_st_available = None
+
+
+def _get_st_model():
+    global _st_model, _st_available
+    if _st_available is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+            _st_model = SentenceTransformer("all-MiniLM-L6-v2")
+            _st_available = True
+        except Exception:
+            _st_available = False
+    return _st_model if _st_available else None
+
+
 def _semantic_distance(text_a: str, text_b: str) -> float:
     """Semantic distance with ML fallback to heuristic."""
-    try:
-        from sentence_transformers import SentenceTransformer
-        import numpy as np
-        model = SentenceTransformer("all-MiniLM-L6-v2")
-        embs = model.encode([text_a[:512], text_b[:512]])
-        cos_sim = np.dot(embs[0], embs[1]) / (
-            np.linalg.norm(embs[0]) * np.linalg.norm(embs[1]) + 1e-8
-        )
-        return float(1.0 - cos_sim)
-    except Exception:
-        return _heuristic_distance(text_a, text_b)
+    model = _get_st_model()
+    if model is not None:
+        try:
+            import numpy as np
+            embs = model.encode([text_a[:512], text_b[:512]])
+            cos_sim = np.dot(embs[0], embs[1]) / (
+                np.linalg.norm(embs[0]) * np.linalg.norm(embs[1]) + 1e-8
+            )
+            return float(1.0 - cos_sim)
+        except Exception:
+            pass
+    return _heuristic_distance(text_a, text_b)
 
 
 # ── Yes-Ladder Scoring ───────────────────────────────────────────────────────
@@ -334,12 +352,16 @@ def detect_semantic_drift(
     yes_ladder = _compute_yes_ladder_score(turn_features)
     creep_index = _commitment_creep_index(turn_features)
 
-    # Information disclosure rate: sensitive keywords per turn
-    avg_sensitive = sum(f.sensitive_keyword_density for f in turn_features) / len(turn_features)
-    late_sensitive = sum(
-        f.sensitive_keyword_density for f in turn_features[len(turn_features)//2:]
-    ) / max(len(turn_features) // 2, 1)
-    info_disclosure_rate = (avg_sensitive + late_sensitive) / 2
+    # Information disclosure trend: increase in sensitive-keyword density from
+    # early to late turns. A static density (same throughout) scores 0; only a
+    # genuine late-conversation spike contributes. Clamped to [0, 0.10] so a
+    # single keyword-dense turn cannot dominate the drift score (DE11).
+    mid = len(turn_features) // 2 or 1
+    early_density = sum(f.sensitive_keyword_density for f in turn_features[:mid]) / mid
+    late_density = sum(
+        f.sensitive_keyword_density for f in turn_features[mid:]
+    ) / max(len(turn_features) - mid, 1)
+    disclosure_trend = min(max(late_density - early_density, 0.0) * 10, 0.10)
 
     # Cumulative drift score (weighted combination)
     final_distance = distances[-1]
@@ -348,7 +370,7 @@ def detect_semantic_drift(
         yes_ladder * 0.25 +
         creep_index * 0.20 +
         drift_velocity * 0.10 +
-        info_disclosure_rate * 10 * 0.10,  # scale up small keyword densities
+        disclosure_trend * 0.10,
         1.0,
     )
 
@@ -381,10 +403,10 @@ def detect_semantic_drift(
             f"Sudden semantic shift at turn {turn_idx} "
             f"(velocity={max_velocity:.3f})"
         )
-    if info_disclosure_rate > 0.001:
+    if disclosure_trend > 0.01:
         evidence.append(
-            f"Elevated sensitive information density: {info_disclosure_rate:.5f} "
-            f"keywords per word (progressive disclosure pattern)"
+            f"Progressive sensitive information disclosure: density rose "
+            f"{disclosure_trend * 10:.4f} pp from early to late turns"
         )
     if not evidence:
         evidence.append("No significant drift patterns detected")
@@ -395,7 +417,7 @@ def detect_semantic_drift(
         drift_velocity=round(drift_velocity, 4),
         yes_ladder_score=round(yes_ladder, 4),
         commitment_creep_index=round(creep_index, 4),
-        information_disclosure_rate=round(info_disclosure_rate, 6),
+        information_disclosure_rate=round(disclosure_trend, 6),
         manipulation_onset_turn=manipulation_onset_turn,
         turn_features=turn_features,
         evidence=evidence,

@@ -28,7 +28,7 @@ class OpenAIClient(BaseLLMClient):
                 error="OpenAI API key not configured",
             )
         try:
-            client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+            client = OpenAI(api_key=self.api_key, base_url=self.base_url, timeout=60.0, max_retries=2)
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})

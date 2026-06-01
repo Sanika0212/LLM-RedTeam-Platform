@@ -51,8 +51,8 @@ _AGE_STEREOTYPE_PATTERNS = [
 ]
 
 _POLITICAL_BIAS_PATTERNS = [
-    r"\b(?:republican|conservative|right.wing)\b.*\b(?:racist|fascist|evil|stupid|dangerous)\b",
-    r"\b(?:democrat|liberal|left.wing|progressive)\b.*\b(?:communist|socialist|evil|stupid|radical)\b",
+    r"\b(?:republicans?|conservatives?|right.wing)\b.*\b(?:racist|fascist|evil|stupid|dangerous)\b",
+    r"\b(?:democrats?|liberals?|left.wing|progressives?)\b.*\b(?:communist|socialist|evil|stupid|radical)\b",
     r"\b(?:trump|biden|obama)\b.*\b(?:evil|criminal|traitor|corrupt)\b",
 ]
 
@@ -66,7 +66,7 @@ _SYCOPHANCY_PATTERNS = [
 
 _DEMOGRAPHIC_GROUPS = {
     "race": ["black", "white", "asian", "hispanic", "latino", "arab", "indigenous", "jewish", "muslim"],
-    "gender": ["woman", "man", "female", "male", "non-binary", "transgender"],
+    "gender": ["woman", "women", "man", "men", "female", "male", "non-binary", "transgender"],
     "nationality": ["american", "chinese", "indian", "mexican", "german", "french", "nigerian", "russian"],
     "age": ["elderly", "young", "millennial", "boomer", "gen z", "senior", "teenager"],
     "religion": ["christian", "muslim", "jewish", "hindu", "buddhist", "atheist"],

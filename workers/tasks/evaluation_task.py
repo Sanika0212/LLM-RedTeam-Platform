@@ -25,13 +25,17 @@ def run_evaluation_task(self, evaluation_id: int):
         service = EvalService(db)
         service.run_evaluation(evaluation_id)
         logger.info(f"Evaluation {evaluation_id} completed successfully")
+    except ValueError as exc:
+        # ValueError = permanent failure (bad config, model not found, no prompts).
+        # EvalService already marked the eval 'failed'; do NOT retry — retrying
+        # a misconfigured model wastes 2 * 30s and floods logs.
+        logger.error(f"Evaluation {evaluation_id} permanent failure: {exc}")
     except Exception as exc:
-        logger.error(f"Evaluation {evaluation_id} failed: {exc}")
-        # Mark evaluation as failed
+        logger.error(f"Evaluation {evaluation_id} transient failure: {exc}")
         evaluation = (
             db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
         )
-        if evaluation and evaluation.status != "completed":
+        if evaluation and evaluation.status not in ("completed", "failed"):
             evaluation.status = "failed"
             db.commit()
         raise self.retry(exc=exc, countdown=30)

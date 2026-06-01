@@ -24,7 +24,7 @@ class AnthropicClient(BaseLLMClient):
                 error="Anthropic API key not configured",
             )
         try:
-            client = anthropic.Anthropic(api_key=self.api_key)
+            client = anthropic.Anthropic(api_key=self.api_key, timeout=60.0, max_retries=2)
             kwargs = {
                 "model": self.model_id,
                 "max_tokens": max_tokens,

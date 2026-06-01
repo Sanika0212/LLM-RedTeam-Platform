@@ -57,10 +57,16 @@ class EvalService:
                 "POST /api/v1/attack-prompts/seed"
             )
 
-        # Build LLM client
-        llm_client = get_llm_client(
-            model.provider, model.model_id, model.api_endpoint or ""
-        )
+        # Build LLM client — config errors (bad provider/missing endpoint) mark the
+        # evaluation failed immediately rather than leaving it stuck in 'pending'.
+        try:
+            llm_client = get_llm_client(
+                model.provider, model.model_id, model.api_endpoint or ""
+            )
+        except ValueError as e:
+            evaluation.status = "failed"
+            self.db.commit()
+            raise ValueError(f"Model configuration error: {e}") from e
 
         # Mark as running
         evaluation.status = "running"
@@ -90,8 +96,19 @@ class EvalService:
             self.db.commit()
             raise ValueError(f"Evaluation failed: {str(e)}")
 
-        # Store individual results
+        # Idempotency: delete any prior result rows for this evaluation so Celery
+        # retries don't double-count (IN2).
+        self.db.query(EvaluationResult).filter(
+            EvaluationResult.evaluation_id == evaluation.id
+        ).delete()
+
+        # Persist only non-errored results (R2). Errored prompts are tracked in
+        # aggregates["errored_prompts"] and recorded on the Evaluation row, but
+        # storing them as EvaluationResult rows would pollute analytics queries
+        # that group/sum over results without an is_error filter.
         for r in results:
+            if r.is_error:
+                continue
             db_result = EvaluationResult(
                 evaluation_id=evaluation.id,
                 prompt=r.prompt,
@@ -105,20 +122,26 @@ class EvalService:
             )
             self.db.add(db_result)
 
-        # Compute and store aggregate scores
+        # Compute aggregate scores (errored calls excluded from denominators)
         aggregates = RedTeamEngine.compute_aggregate_scores(results)
-        evaluation.safety_score = aggregates["safety_score"]
         evaluation.jailbreak_rate = aggregates["jailbreak_rate"]
-        evaluation.robustness_score = aggregates["robustness_score"]
         evaluation.hallucination_rate = aggregates["hallucination_rate"]
-        evaluation.status = "completed"
         evaluation.completed_at = datetime.datetime.utcnow()
-        evaluation.completed_prompts = len(results)
+        evaluation.completed_prompts = aggregates["valid_prompts"]
 
-        # Update model scores
-        model.total_evaluations += 1
-        model.safety_score = aggregates["safety_score"]
-        model.robustness_score = aggregates["robustness_score"]
+        # Set final status: failed if every prompt errored, completed otherwise (R3/IN5)
+        if aggregates["valid_prompts"] == 0:
+            evaluation.status = "failed"
+            evaluation.safety_score = 0.0
+            evaluation.robustness_score = 0.0
+        else:
+            evaluation.status = "completed"
+            evaluation.safety_score = aggregates["safety_score"]
+            evaluation.robustness_score = aggregates["robustness_score"]
+            # Only update model-level scores when we have valid results (R7)
+            model.total_evaluations += 1
+            model.safety_score = aggregates["safety_score"]
+            model.robustness_score = aggregates["robustness_score"]
 
         self.db.commit()
         self.db.refresh(evaluation)

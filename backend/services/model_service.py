@@ -9,7 +9,10 @@ class ModelService:
         provider: str, model_id: str, api_endpoint: str = ""
     ) -> dict:
         """Test if the LLM is reachable with current credentials."""
-        client = get_llm_client(provider, model_id, api_endpoint)
+        try:
+            client = get_llm_client(provider, model_id, api_endpoint)
+        except ValueError as e:
+            return {"reachable": False, "error": str(e)}
         if not client.is_available():
             return {
                 "reachable": False,

@@ -47,7 +47,7 @@ def decode_token(token: str) -> dict | None:
             token,
             settings.SECRET_KEY,
             algorithms=[ALGORITHM],
-            options={"require": ["exp"], "verify_exp": True},
+            options={"require_exp": True},
         )
     except JWTError:
         return None

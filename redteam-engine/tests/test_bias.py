@@ -190,7 +190,11 @@ class TestDetectDemographicGroups:
 
     def test_detects_gender_groups(self):
         groups = _detect_demographic_groups("The study compared men and women.")
-        assert any("man" in g or "male" in g or "woman" in g or "female" in g for g in groups)
+        # Accept singular ("man"/"woman") or plural ("men"/"women") — both are in the lexicon
+        assert any(
+            "man" in g or "men" in g or "male" in g or "woman" in g or "women" in g or "female" in g
+            for g in groups
+        )
 
     def test_detects_religion_groups(self):
         groups = _detect_demographic_groups("Christian and Muslim communities responded differently.")

@@ -84,6 +84,17 @@ class TestASRAtK:
         expected = 1.0 - (1.0 - asr) ** 5
         assert abs(asr_at_k(results, 5) - expected) < 1e-9
 
+    def test_empty_results_returns_zero(self):
+        # Empty list → ASR=0 → ASR@k=0 for any positive k
+        assert asr_at_k([], k=5) == 0.0
+
+    def test_invalid_k_raises(self):
+        results = [make_result(is_jailbroken=False)]
+        with pytest.raises(ValueError):
+            asr_at_k(results, 0)
+        with pytest.raises(ValueError):
+            asr_at_k(results, -1)
+
 
 class TestEmpiricalASRAtK:
     def test_all_succeed(self):
@@ -91,7 +102,8 @@ class TestEmpiricalASRAtK:
         assert empirical_asr_at_k(groups, k=1) == 1.0
 
     def test_none_succeed(self):
-        groups = [[make_result(is_jailbroken=False)] * 3 for _ in range(5)]
+        # Each group uses distinct objects (not aliased via *3) to avoid shared-state risk
+        groups = [[make_result(is_jailbroken=False) for _ in range(3)] for _ in range(5)]
         assert empirical_asr_at_k(groups, k=3) == 0.0
 
     def test_empty(self):
@@ -108,6 +120,12 @@ class TestEmpiricalASRAtK:
         assert empirical_asr_at_k(groups, k=1) == 0.0
         # At k=2: group 1 succeeds on attempt 2
         assert empirical_asr_at_k(groups, k=2) == 0.5
+
+    def test_k_exceeds_group_length(self):
+        # k larger than any group should not crash — uses all available attempts
+        groups = [[make_result(is_jailbroken=True), make_result(is_jailbroken=False)]]
+        # k=10 but group has 2 items — should still find the success at index 0
+        assert empirical_asr_at_k(groups, k=10) == 1.0
 
 
 class TestExposureRate:

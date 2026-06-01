@@ -84,8 +84,10 @@ def asr_at_k(results: list[PromptMetrics], k: int) -> float:
 
     Args:
         results: Full list of prompt results.
-        k: Number of attempts per target.
+        k: Number of attempts per target. Must be >= 1.
     """
+    if k <= 0:
+        raise ValueError(f"k must be a positive integer, got {k}")
     asr = attack_success_rate(results)
     return 1.0 - (1.0 - asr) ** k
 

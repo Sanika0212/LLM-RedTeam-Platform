@@ -74,14 +74,20 @@ class RedTeamEngine:
         refusal_result = detect_refusal(response_text)
         coherence = self._score_coherence(response_text)
 
+        is_jailbroken = jailbreak["is_jailbroken"]
+        # Mutual exclusivity: a response cannot simultaneously be a successful jailbreak
+        # and a refusal. If the jailbreak detector fired, suppress refusal_detected so
+        # both flags never pollute the same metric numerator (DE8).
+        refusal_detected = refusal_result["refusal_detected"] and not is_jailbroken
+
         return PromptResult(
             prompt=prompt_text,
             response=response_text,
             attack_type=attack_type,
-            is_jailbroken=jailbreak["is_jailbroken"],
+            is_jailbroken=is_jailbroken,
             toxicity_score=toxicity["toxicity_score"],
             coherence_score=coherence,
-            refusal_detected=refusal_result["refusal_detected"],
+            refusal_detected=refusal_detected,
             hallucination_score=hallucination["hallucination_score"],
             extra_data={
                 "jailbreak_confidence": jailbreak["confidence"],

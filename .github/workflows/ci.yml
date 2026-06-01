@@ -72,8 +72,7 @@ jobs:
       - name: Run engine tests
         working-directory: redteam-engine
         run: |
-          pytest tests/test_metrics.py tests/test_refusal.py tests/test_core.py \
-                 -v --cov=. --cov-report=term
+          pytest tests/ -v --cov=. --cov-report=term
 
   typecheck-frontend:
     runs-on: ubuntu-latest

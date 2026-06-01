@@ -1,5 +1,15 @@
 const API_BASE = '/api/v1'
 
+// Prevent reload storm: only allow one auto-logout redirect per session
+let _reloading = false
+
+function handle401(): void {
+  if (_reloading) return
+  _reloading = true
+  clearToken()
+  window.location.reload()
+}
+
 function getToken(): string | null {
   return localStorage.getItem('auth_token')
 }
@@ -31,10 +41,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
   })
 
-  // Auto-logout on 401 — token expired or revoked; reload to show login screen
-  if (res.status === 401) {
-    clearToken()
-    window.location.reload()
+  // Auto-logout on 401 only when a token exists and path is not an auth endpoint.
+  // Auth endpoints (login/register) return 401 for wrong credentials — those errors
+  // must propagate to the UI, not trigger a reload loop.
+  if (res.status === 401 && getToken() && !path.startsWith('/auth/')) {
+    handle401()
     return undefined as T
   }
 
@@ -97,7 +108,7 @@ export const api = {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     })
-    if (res.status === 401) { clearToken(); window.location.reload(); return }
+    if (res.status === 401) { handle401(); return }
     if (!res.ok) throw new Error('Export failed')
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)

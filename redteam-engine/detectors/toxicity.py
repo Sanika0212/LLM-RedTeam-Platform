@@ -1,6 +1,15 @@
 """Toxicity scoring — uses detoxify ML model when available, falls back to keyword heuristic."""
 
+import re
+
 from ._constants import TOXICITY_KEYWORDS
+
+# Precompile word-boundary pattern for all toxicity keywords (avoids substring false-positives
+# like "die" matching "studies" or "meth" matching "method").
+_TOXICITY_PATTERN = re.compile(
+    r"\b(" + "|".join(re.escape(kw) for kw in TOXICITY_KEYWORDS) + r")\b",
+    re.IGNORECASE,
+)
 
 # Lazy-loaded ML model singleton
 _detoxify_model = None
@@ -41,10 +50,10 @@ def _score_toxicity_ml(text: str) -> dict:
 
 
 def _score_toxicity_heuristic(text: str) -> dict:
-    """Score toxicity using keyword density heuristic."""
-    text_lower = text.lower()
-    words = text_lower.split()
-    flagged = [kw for kw in TOXICITY_KEYWORDS if kw in text_lower]
+    """Score toxicity using keyword density heuristic with word-boundary matching."""
+    words = text.split()
+    matches = _TOXICITY_PATTERN.findall(text)
+    flagged = list({m.lower() for m in matches})
 
     if not words or not flagged:
         return {"toxicity_score": 0.0, "flagged_terms": flagged, "detector": "heuristic"}

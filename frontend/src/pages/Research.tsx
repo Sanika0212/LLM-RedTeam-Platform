@@ -263,7 +263,11 @@ function AdaptiveBudgetPanel() {
     setLoading(true)
     setError(null)
     api.getAdaptiveBudgetSimulation(budget)
-      .then(setData)
+      .then((d: any) => {
+        // Backend may return HTTP 200 with {error: "Insufficient data…"}
+        if (d?.error) { setError(d.error); setData(null) }
+        else setData(d)
+      })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }
@@ -314,13 +318,13 @@ function AdaptiveBudgetPanel() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
             <StatMini
               label="Adaptive ASR"
-              value={`${(data.simulation?.mean_adaptive_asr * 100).toFixed(1)}%`}
+              value={`${((data.simulation?.mean_adaptive_asr ?? 0) * 100).toFixed(1)}%`}
               sub="Thompson Sampling"
               highlight
             />
             <StatMini
               label="Uniform ASR"
-              value={`${(data.simulation?.mean_uniform_asr * 100).toFixed(1)}%`}
+              value={`${((data.simulation?.mean_uniform_asr ?? 0) * 100).toFixed(1)}%`}
               sub="Baseline strategy"
             />
             <StatMini

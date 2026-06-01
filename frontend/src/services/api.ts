@@ -30,6 +30,14 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers,
     ...options,
   })
+
+  // Auto-logout on 401 — token expired or revoked; reload to show login screen
+  if (res.status === 401) {
+    clearToken()
+    window.location.reload()
+    return undefined as T
+  }
+
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: res.statusText }))
     throw new Error(error.detail || 'Request failed')
@@ -80,7 +88,25 @@ export const api = {
   getEvaluationReport: (id: number) => request<any>(`/analytics/evaluation-report/${id}`),
   getCategoryHeatmap: () => request<any>('/analytics/category-heatmap'),
   getEvaluationTimeline: () => request<any>('/analytics/timeline'),
-  exportEvaluationCsv: (id: number) => `${API_BASE}/analytics/export/${id}`,
+  exportEvaluationCsv: async (id: number): Promise<void> => {
+    const token = getToken()
+    const res = await fetch(`${API_BASE}/analytics/export/${id}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    })
+    if (res.status === 401) { clearToken(); window.location.reload(); return }
+    if (!res.ok) throw new Error('Export failed')
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `evaluation-${id}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  },
   getAttackPromptStats: () => request<any>('/analytics/attack-prompts/stats'),
 
   // Novel Research Endpoints

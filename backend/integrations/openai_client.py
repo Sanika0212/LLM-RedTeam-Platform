@@ -6,6 +6,10 @@ from integrations.base import BaseLLMClient, LLMResponse
 class OpenAIClient(BaseLLMClient):
     provider_name = "openai"
 
+    def __init__(self, api_key: str, model_id: str, base_url: str = ""):
+        super().__init__(api_key=api_key, model_id=model_id)
+        self.base_url = base_url or None  # None → SDK uses the default OpenAI endpoint
+
     def is_available(self) -> bool:
         return bool(self.api_key) and not self.api_key.startswith("sk-...")
 
@@ -24,7 +28,7 @@ class OpenAIClient(BaseLLMClient):
                 error="OpenAI API key not configured",
             )
         try:
-            client = OpenAI(api_key=self.api_key)
+            client = OpenAI(api_key=self.api_key, base_url=self.base_url)
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})

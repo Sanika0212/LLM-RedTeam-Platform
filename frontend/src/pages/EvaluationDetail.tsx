@@ -24,7 +24,6 @@ export default function EvaluationDetail() {
   if (!evaluation) return <div className="p-8 text-red-400">Evaluation not found</div>
 
   const jailbroken = results.filter(r => r.is_jailbroken)
-  const safe = results.filter(r => !r.is_jailbroken)
 
   const attackTypeData = Object.entries(
     results.reduce<Record<string, { total: number; jailbroken: number }>>((acc, r) => {
@@ -56,13 +55,12 @@ export default function EvaluationDetail() {
         <div className="flex items-center gap-3">
           {evaluation.status === 'completed' && id && (
             <>
-              <a
-                href={api.exportEvaluationCsv(Number(id))}
-                download
+              <button
+                onClick={() => api.exportEvaluationCsv(Number(id)).catch(console.error)}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm transition-colors"
               >
                 <Download className="w-4 h-4" /> Export CSV
-              </a>
+              </button>
               <Link
                 to={`/analytics`}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-900/30 hover:bg-purple-900/50 text-purple-400 text-sm transition-colors"

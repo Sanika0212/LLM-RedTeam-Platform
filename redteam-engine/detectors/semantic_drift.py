@@ -208,15 +208,16 @@ def _compute_yes_ladder_score(features: list[TurnFeatures]) -> float:
     refusals = [f.refusal_density for f in features]
     compliances = [f.compliance_density for f in features]
 
-    # Count monotonic trends
+    # Count STRICT monotonic trends — non-strict (>=/<= ) would score a flat
+    # all-zero sequence as a perfect ladder, over-detecting drift on benign convos.
     asc_agreement = sum(
-        1 for i in range(1, len(agreements)) if agreements[i] >= agreements[i - 1]
+        1 for i in range(1, len(agreements)) if agreements[i] > agreements[i - 1]
     )
     desc_refusal = sum(
-        1 for i in range(1, len(refusals)) if refusals[i] <= refusals[i - 1]
+        1 for i in range(1, len(refusals)) if refusals[i] < refusals[i - 1]
     )
     asc_compliance = sum(
-        1 for i in range(1, len(compliances)) if compliances[i] >= compliances[i - 1]
+        1 for i in range(1, len(compliances)) if compliances[i] > compliances[i - 1]
     )
 
     max_steps = len(features) - 1

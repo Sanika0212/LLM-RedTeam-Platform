@@ -162,7 +162,9 @@ class TestRefusalConsistencyScore:
         assert score < 0.1  # Should be near 0 (1 - H(0.5)/1 = 1 - 1 = 0)
 
     def test_empty(self):
-        assert refusal_consistency_score([]) == 0.0
+        # Empty input → no data to measure inconsistency; convention is 1.0 (maximally consistent),
+        # matching compute_all_metrics and confidence_weighted_safety_score empty-input behavior.
+        assert refusal_consistency_score([]) == 1.0
 
 
 class TestVulnerabilityProfile:

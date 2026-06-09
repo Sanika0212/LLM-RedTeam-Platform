@@ -346,13 +346,28 @@ def build_tree_from_generator_output(
         seed_ids.append(sid)
 
     for j, m in enumerate(mutations):
-        seed_idx = m.get("seed_index", 0)
-        parent_id = seed_ids[seed_idx] if seed_idx < len(seed_ids) else seed_ids[0]
+        # These keys are NOT produced by generators.expand_for_benchmark() — the
+        # caller must merge per-variant provenance (seed_index, mutation_type) and
+        # post-evaluation verdicts (is_jailbroken) before building the tree.
+        # Defaulting them silently mislinked every mutation to seed-0, collapsed
+        # mutation_type to one bucket, and recorded zero successful lineages.
+        missing = [k for k in ("seed_index", "mutation_type", "is_jailbroken") if k not in m]
+        if missing:
+            raise KeyError(
+                f"mutation[{j}] is missing required provenance keys {missing}; "
+                f"merge generator output with evaluation results before calling "
+                f"build_tree_from_generator_output (got keys {sorted(m.keys())})."
+            )
+        seed_idx = m["seed_index"]
+        if not (0 <= seed_idx < len(seed_ids)):
+            raise IndexError(
+                f"mutation[{j}].seed_index={seed_idx} out of range for {len(seed_ids)} seeds."
+            )
         tree.add_mutation(
-            parent_id=parent_id,
+            parent_id=seed_ids[seed_idx],
             prompt=m["prompt"],
-            mutation_applied=m.get("mutation_type", "unknown"),
-            is_jailbroken=m.get("is_jailbroken", False),
+            mutation_applied=m["mutation_type"],
+            is_jailbroken=m["is_jailbroken"],
             jailbreak_score=m.get("score", 0.0),
             model=model,
             child_id=f"mut-{j}",

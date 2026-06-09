@@ -9,6 +9,7 @@ import pytest
 from analysis.metrics import (
     PromptMetrics,
     attack_success_rate,
+    asr_confidence_interval,
     asr_at_k,
     empirical_asr_at_k,
     exposure_rate,
@@ -274,3 +275,58 @@ class TestCompareModels:
         result = compare_models({})
         assert "_ranking" in result
         assert result["_ranking"] == []
+
+
+class TestKValidation:
+    def test_asr_at_k_rejects_zero(self):
+        results = [make_result(is_jailbroken=True) for _ in range(5)]
+        with pytest.raises(ValueError):
+            asr_at_k(results, 0)
+
+    def test_asr_at_k_rejects_negative(self):
+        results = [make_result(is_jailbroken=True) for _ in range(5)]
+        with pytest.raises(ValueError):
+            asr_at_k(results, -1)
+
+    def test_empirical_asr_at_k_rejects_zero(self):
+        with pytest.raises(ValueError):
+            empirical_asr_at_k([[make_result(is_jailbroken=True)]], 0)
+
+
+class TestASRConfidenceInterval:
+    def test_empty_is_full_range(self):
+        ci = asr_confidence_interval([])
+        assert ci["n"] == 0
+        assert ci["ci_low"] == 0.0 and ci["ci_high"] == 1.0
+
+    def test_interval_brackets_point_estimate(self):
+        results = [make_result(is_jailbroken=True) for _ in range(4)] + \
+                  [make_result(is_jailbroken=False) for _ in range(6)]
+        ci = asr_confidence_interval(results)
+        assert ci["ci_low"] <= ci["asr"] <= ci["ci_high"]
+        assert 0.0 <= ci["ci_low"] and ci["ci_high"] <= 1.0
+
+    def test_more_data_tightens_interval(self):
+        small = [make_result(is_jailbroken=(i < 4)) for i in range(10)]
+        large = [make_result(is_jailbroken=(i < 400)) for i in range(1000)]
+        w_small = asr_confidence_interval(small)
+        w_large = asr_confidence_interval(large)
+        width_small = w_small["ci_high"] - w_small["ci_low"]
+        width_large = w_large["ci_high"] - w_large["ci_low"]
+        assert width_large < width_small  # same ASR=0.4, larger n → tighter CI
+
+    def test_interval_stays_in_unit_range_at_extremes(self):
+        all_jb = [make_result(is_jailbroken=True) for _ in range(20)]
+        ci = asr_confidence_interval(all_jb)
+        assert ci["ci_high"] <= 1.0 and ci["ci_low"] >= 0.0
+
+
+class TestErrorExclusion:
+    def test_errored_records_can_be_filtered(self):
+        # is_error defaults False and never inflates the clean denominator when set.
+        ok = make_result(is_jailbroken=True)
+        err = make_result(is_jailbroken=False)
+        err.is_error = True
+        valid = [m for m in [ok, err] if not m.is_error]
+        assert attack_success_rate(valid) == 1.0       # error row excluded
+        assert attack_success_rate([ok, err]) == 0.5   # included → deflated (the bug)

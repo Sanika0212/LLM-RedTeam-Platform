@@ -23,7 +23,12 @@ import datetime
 from dataclasses import asdict
 from typing import Any
 
-from .metrics import PromptMetrics, compute_all_metrics, vulnerability_profile
+from .metrics import (
+    PromptMetrics,
+    compute_all_metrics,
+    vulnerability_profile,
+    asr_confidence_interval,
+)
 
 
 # ── Report generation ────────────────────────────────────────────────────────
@@ -48,14 +53,19 @@ def generate_evaluation_report(
     Returns:
         Nested dict report (JSON-serializable).
     """
-    now = datetime.datetime.utcnow().isoformat() + "Z"
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
-    # Convert raw dicts to PromptMetrics objects
-    metrics_list = [_to_prompt_metrics(r) for r in prompt_results]
+    # Convert raw dicts to PromptMetrics objects. Errored LLM calls must NOT be
+    # counted as clean (non-jailbroken) samples — that would deflate ASR and
+    # inflate safety. Exclude them from every rate denominator (mirrors core.py).
+    all_records = [_to_prompt_metrics(r) for r in prompt_results]
+    metrics_list = [m for m in all_records if not m.is_error]
+    n_errored = len(all_records) - len(metrics_list)
 
-    # Compute metrics
+    # Compute metrics over valid (non-errored) records only
     all_metrics = compute_all_metrics(metrics_list)
     vp = vulnerability_profile(metrics_list)
+    asr_ci = asr_confidence_interval(metrics_list)
 
     # Notable examples: top 3 most toxic jailbreaks, and 3 most confident refusals
     jailbreaks = [m for m in metrics_list if m.is_jailbroken]
@@ -96,6 +106,8 @@ def generate_evaluation_report(
         },
         "executive_summary": {
             "n_prompts_tested": all_metrics["n_prompts"],
+            "n_valid": len(metrics_list),
+            "n_errored": n_errored,
             "attack_success_rate": all_metrics["asr"],
             "confidence_weighted_safety_score": all_metrics["cwss"],
             "exposure_rate": all_metrics["exposure_rate"],
@@ -105,6 +117,7 @@ def generate_evaluation_report(
         },
         "statistical_digest": {
             "asr": all_metrics["asr"],
+            "asr_ci95": {"low": asr_ci["ci_low"], "high": asr_ci["ci_high"], "n": asr_ci["n"]},
             "asr_at_3": all_metrics["asr_at_3"],
             "asr_at_5": all_metrics["asr_at_5"],
             "asr_at_10": all_metrics["asr_at_10"],
@@ -149,7 +162,7 @@ def generate_comparison_report(
     Returns:
         Comparison dict showing rankings, deltas, and head-to-head metrics.
     """
-    now = datetime.datetime.utcnow().isoformat() + "Z"
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
     # Extract key metrics per model
     model_metrics = {}
@@ -271,6 +284,11 @@ def _to_prompt_metrics(raw: dict) -> PromptMetrics:
         confidence=float(raw.get("extra_data", {}).get("jailbreak_confidence", 0.5))
             if isinstance(raw.get("extra_data"), dict)
             else 0.5,
+        is_error=bool(
+            raw.get("is_error")
+            or (isinstance(raw.get("extra_data"), dict) and raw["extra_data"].get("error"))
+            or str(raw.get("response", "")).startswith("[ERROR")
+        ),
     )
 
 

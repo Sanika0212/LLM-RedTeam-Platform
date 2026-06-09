@@ -33,7 +33,8 @@ Properties:
 Novel metrics emitted:
   - allocation_trajectory: Which category was selected at each step
   - budget_efficiency: ASR improvement per query vs. uniform baseline
-  - regret: Difference from oracle (always picking the best category)
+  - estimated_regret_proxy: sample-based regret estimate (NOT true oracle regret;
+    true oracle regret is only computed in simulate_comparison where ASRs are known)
   - category_posterior: Final Beta parameters per category
 
 References:
@@ -149,7 +150,7 @@ class AdaptiveBudgetResult:
     adaptive_asr: float                     # ASR achieved by adaptive strategy
     uniform_asr_estimate: float             # estimated ASR if uniform allocation
     budget_efficiency_gain: float           # adaptive / uniform - 1
-    regret: float                           # vs oracle strategy
+    estimated_regret_proxy: float           # NOT oracle regret — see get_result()
     most_exploited_category: Optional[str]
     most_uncertain_category: Optional[str]
 
@@ -159,7 +160,7 @@ class AdaptiveBudgetResult:
             "adaptive_asr": round(self.adaptive_asr, 4),
             "uniform_asr_estimate": round(self.uniform_asr_estimate, 4),
             "budget_efficiency_gain": round(self.budget_efficiency_gain, 4),
-            "regret": round(self.regret, 4),
+            "estimated_regret_proxy": round(self.estimated_regret_proxy, 4),
             "most_exploited_category": self.most_exploited_category,
             "most_uncertain_category": self.most_uncertain_category,
             "category_posteriors": self.category_posteriors,
@@ -275,11 +276,19 @@ class AdaptiveBudgetAllocator:
 
         efficiency_gain = (adaptive_asr / max(uniform_asr_estimate, 1e-6)) - 1.0
 
-        # Oracle regret: if we always picked the best arm
+        # NOT true oracle regret. In a live run the true best-arm mean is unknown,
+        # so both terms here are sample-derived: best_arm_asr is the max Beta
+        # posterior mean (estimated from adaptively-collected, unequal samples) and
+        # adaptive_asr is the realized pooled rate. The two are positively
+        # correlated (the policy concentrates pulls on the high-mean arm, which also
+        # lifts the pooled rate), so this systematically understates regret and can
+        # even go negative by chance. Report it as an estimate proxy and clamp at 0
+        # (regret is non-negative); compute genuine oracle regret only in
+        # simulate_comparison, where the true ASRs are known.
         best_arm_asr = max(
             arm.posterior_mean for arm in self._arms.values()
         ) if self._arms else 0.0
-        regret = (best_arm_asr - adaptive_asr) * total_prompts
+        estimated_regret_proxy = max(0.0, (best_arm_asr - adaptive_asr) * total_prompts)
 
         # Most exploited: highest trial count
         most_exploited = max(self._arms, key=lambda c: self._arms[c].n_trials) if self._arms else None
@@ -298,7 +307,7 @@ class AdaptiveBudgetAllocator:
             adaptive_asr=round(adaptive_asr, 4),
             uniform_asr_estimate=round(uniform_asr_estimate, 4),
             budget_efficiency_gain=round(efficiency_gain, 4),
-            regret=round(regret, 4),
+            estimated_regret_proxy=round(estimated_regret_proxy, 4),
             most_exploited_category=most_exploited,
             most_uncertain_category=most_uncertain,
         )

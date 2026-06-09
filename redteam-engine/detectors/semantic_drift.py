@@ -191,7 +191,7 @@ def _get_st_model():
 
 
 def _semantic_distance(text_a: str, text_b: str) -> float:
-    """Semantic distance with ML fallback to heuristic."""
+    """Semantic distance with ML fallback to heuristic. Result is in [0, 1]."""
     model = _get_st_model()
     if model is not None:
         try:
@@ -200,7 +200,10 @@ def _semantic_distance(text_a: str, text_b: str) -> float:
             cos_sim = np.dot(embs[0], embs[1]) / (
                 np.linalg.norm(embs[0]) * np.linalg.norm(embs[1]) + 1e-8
             )
-            return float(1.0 - cos_sim)
+            # cos_sim can be negative, so 1 - cos_sim can exceed 1.0; clamp to keep
+            # the ML and heuristic backends on the same [0, 1] scale the thresholds
+            # downstream assume.
+            return float(max(0.0, min(1.0 - cos_sim, 1.0)))
         except Exception:
             pass
     return _heuristic_distance(text_a, text_b)

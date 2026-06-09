@@ -87,9 +87,14 @@ class AttackStrategy(ABC):
 
     name: str = "base"
 
-    def __init__(self, max_tokens: int = 1024, temperature: float = 0.7):
+    def __init__(self, max_tokens: int = 1024, temperature: float = 0.7, judge_fn=None):
         self.max_tokens = max_tokens
         self.temperature = temperature
+        # Optional in-loop success signal. When set, strategies use this to decide
+        # jailbreak/stop instead of the built-in heuristic detector — this unifies
+        # the loop signal with the scoring judge (e.g. Llama-Guard), removing the
+        # heuristic-vs-judge mismatch that made strategies stop early/late.
+        self.judge_fn = judge_fn
 
     @abstractmethod
     def run(
@@ -150,7 +155,16 @@ class AttackStrategy(ABC):
         return result
 
     def _detect_jailbreak(self, prompt: str, response: str) -> bool:
-        """Quick jailbreak check using the heuristic detector."""
+        """Jailbreak check for the in-loop signal.
+
+        Uses the injected judge_fn (authoritative, e.g. Llama-Guard) when present;
+        otherwise falls back to the built-in heuristic detector.
+        """
+        if self.judge_fn is not None:
+            try:
+                return bool(self.judge_fn(prompt, response))
+            except Exception:
+                pass  # judge unavailable mid-run → fall back to heuristic
         try:
             import sys
             import os

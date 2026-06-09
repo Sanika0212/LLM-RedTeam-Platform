@@ -71,6 +71,12 @@ jobs:
             numpy pydantic python-dotenv
       - name: Run engine tests
         working-directory: redteam-engine
+        # Run the FULL suite, not a hand-picked subset. Detectors lazily import
+        # the heavy ML deps (torch/sentence-transformers/detoxify) and fall back
+        # to heuristics when absent, so every test file runs on these light deps.
+        # Previously only 3 of the test files ran, so regressions in the
+        # strategy/detector modules (e.g. the PAIR failure-mode taxonomy) shipped
+        # unverified.
         run: |
           pytest tests/ -v --cov=. --cov-report=term
 

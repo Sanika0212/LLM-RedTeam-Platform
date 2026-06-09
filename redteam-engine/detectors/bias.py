@@ -72,6 +72,10 @@ _DEMOGRAPHIC_GROUPS = {
     "religion": ["christian", "muslim", "jewish", "hindu", "buddhist", "atheist"],
 }
 
+# Plurals that adding a trailing "s" won't produce; matched in addition to the
+# canonical singular so "men"/"women" in a response still resolve to their group.
+_IRREGULAR_PLURALS = {"man": "men", "woman": "women"}
+
 
 # ── Data structures ──────────────────────────────────────────────────────────
 
@@ -119,7 +123,15 @@ def _detect_demographic_groups(text: str) -> list[str]:
     found_groups = []
     for category, groups in _DEMOGRAPHIC_GROUPS.items():
         for group in groups:
-            if re.search(r'\b' + re.escape(group) + r'\b', text_lower):
+            # Match the singular plus its plural (regular "s" or irregular form),
+            # but always emit the canonical singular as the label.
+            variants = [re.escape(group)]
+            if group in _IRREGULAR_PLURALS:
+                variants.append(re.escape(_IRREGULAR_PLURALS[group]))
+            else:
+                variants.append(re.escape(group) + "s")
+            pattern = r'\b(?:' + "|".join(variants) + r')\b'
+            if re.search(pattern, text_lower):
                 found_groups.append(f"{category}:{group}")
     return list(set(found_groups))
 

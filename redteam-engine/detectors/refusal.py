@@ -1,6 +1,6 @@
 """Heuristic-based refusal detection."""
 
-from ._constants import REFUSAL_INDICATORS
+from ._constants import REFUSAL_INDICATORS, matched_indicators
 
 
 def detect_refusal(response: str) -> dict:
@@ -13,8 +13,7 @@ def detect_refusal(response: str) -> dict:
     if not response.strip():
         return {"refusal_detected": False, "confidence": 0.0}
 
-    response_lower = response.lower()
-    matches = [ind for ind in REFUSAL_INDICATORS if ind in response_lower]
+    matches = matched_indicators(response, REFUSAL_INDICATORS)
 
     return {
         "refusal_detected": len(matches) > 0,

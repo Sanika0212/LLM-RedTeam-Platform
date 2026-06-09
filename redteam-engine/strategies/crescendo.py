@@ -99,22 +99,28 @@ class CrescendoAttack(AttackStrategy):
         attack_family: str = "generic",
         escalation_depth: int = 5,
         use_recovery: bool = True,
+        attacker=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.attack_family = attack_family
         self.escalation_depth = escalation_depth
         self.use_recovery = use_recovery
+        # Optional attacker LLM. When set, each escalation turn is generated
+        # adaptively from the conversation so far (reacting to refusals / partial
+        # compliance) instead of using the fixed escalation templates.
+        self.attacker = attacker
 
     def _build_escalation_sequence(self, target_intent: str) -> list[str]:
-        """Select or construct an escalation sequence for the given intent."""
-        seq = _CRESCENDO_SEQUENCES.get(self.attack_family)
-        if seq:
-            return seq[: self.escalation_depth]
+        """Select or construct an escalation sequence for the given intent.
 
-        # Generic fallback: build steps around the target_intent
-        generic = _CRESCENDO_SEQUENCES["generic"]
-        return [s.format(topic=target_intent) for s in generic][: self.escalation_depth]
+        Substitutes {topic} wherever it appears (the 'generic' family is built
+        around it). Previously a known family key returned the raw templates, so
+        'generic' leaked the literal '{topic}' placeholder into the prompts.
+        """
+        seq = _CRESCENDO_SEQUENCES.get(self.attack_family) or _CRESCENDO_SEQUENCES["generic"]
+        steps = seq[: self.escalation_depth]
+        return [s.format(topic=target_intent) if "{topic}" in s else s for s in steps]
 
     def run(
         self,
@@ -129,12 +135,31 @@ class CrescendoAttack(AttackStrategy):
         all_responses: list[str] = []
         all_flags: list[bool] = []
 
-        escalation_steps = self._build_escalation_sequence(target_intent)
+        use_attacker = self.attacker is not None
+        escalation_steps = (
+            [] if use_attacker else self._build_escalation_sequence(target_intent)
+        )
         jailbreak_found: str | None = None
         jailbreak_response: str | None = None
         refusal_count = 0
+        last_response: str | None = None
+        last_prompt: str | None = None
 
-        for step_idx, step_prompt in enumerate(escalation_steps):
+        for step_idx in range(self.escalation_depth):
+            if use_attacker:
+                # Adaptive escalation: the attacker writes the next turn given how
+                # the target last replied.
+                proposed = self.attacker.propose(
+                    target_intent, 1, last_prompt=last_prompt, last_response=last_response
+                )
+                if not proposed:
+                    break
+                step_prompt = proposed[0]
+            else:
+                if step_idx >= len(escalation_steps):
+                    break
+                step_prompt = escalation_steps[step_idx]
+
             all_prompts.append(step_prompt)
             conversation.append({"role": "user", "content": step_prompt})
 
@@ -145,14 +170,16 @@ class CrescendoAttack(AttackStrategy):
             all_flags.append(is_jb)
 
             conversation.append({"role": "assistant", "content": response})
+            last_prompt, last_response = step_prompt, response
 
             if is_jb:
                 jailbreak_found = step_prompt
                 jailbreak_response = response
                 break
 
-            # Model may have refused — attempt recovery if configured
-            if self.use_recovery and self._is_refusal(response) and refusal_count < 2:
+            # Template mode: static recovery on refusal. With an attacker, recovery
+            # is implicit — it already adapts to the refusal on the next turn.
+            if not use_attacker and self.use_recovery and self._is_refusal(response) and refusal_count < 2:
                 recovery_prompt = _RECOVERY_TEMPLATES[refusal_count % len(_RECOVERY_TEMPLATES)]
                 all_prompts.append(recovery_prompt)
                 conversation.append({"role": "user", "content": recovery_prompt})

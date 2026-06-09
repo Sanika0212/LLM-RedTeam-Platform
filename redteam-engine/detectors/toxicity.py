@@ -1,15 +1,10 @@
 """Toxicity scoring — uses detoxify ML model when available, falls back to keyword heuristic."""
 
-import re
+from ._constants import TOXIC_TERM_PATTERN
 
-from ._constants import TOXICITY_KEYWORDS
-
-# Precompile word-boundary pattern for all toxicity keywords (avoids substring false-positives
-# like "die" matching "studies" or "meth" matching "method").
-_TOXICITY_PATTERN = re.compile(
-    r"\b(" + "|".join(re.escape(kw) for kw in TOXICITY_KEYWORDS) + r")\b",
-    re.IGNORECASE,
-)
+# Single source of truth lives in _constants (shared with the jailbreak detector's
+# harmful-content gate) so the lexicon/inflection logic can never drift.
+_TOXICITY_PATTERN = TOXIC_TERM_PATTERN
 
 # Lazy-loaded ML model singleton
 _detoxify_model = None
@@ -52,14 +47,16 @@ def _score_toxicity_ml(text: str) -> dict:
 def _score_toxicity_heuristic(text: str) -> dict:
     """Score toxicity using keyword density heuristic with word-boundary matching."""
     words = text.split()
-    matches = _TOXICITY_PATTERN.findall(text)
-    flagged = list({m.lower() for m in matches})
+    matches = _TOXICITY_PATTERN.findall(text)  # captured stems, incl. repeats
+    flagged = sorted({m.lower() for m in matches})
 
-    if not words or not flagged:
+    if not words or not matches:
         return {"toxicity_score": 0.0, "flagged_terms": flagged, "detector": "heuristic"}
 
-    raw = len(flagged) / max(len(words) / 10, 1)
-    score = min(raw, 1.0)
+    # Coherent density: total toxic-token matches over total tokens, in [0, 1].
+    # (Previously the numerator counted unique TYPES while the denominator was
+    # words/10, so the value was neither a density nor a fraction.)
+    score = min(len(matches) / len(words), 1.0)
 
     return {
         "toxicity_score": round(score, 4),
